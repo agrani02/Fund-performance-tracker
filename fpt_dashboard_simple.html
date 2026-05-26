@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fund Performance Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+  :root {
+    --bg:#f4f5f7; --bg2:#ffffff; --bg3:#eef0f3;
+    --border:#dde1e8; --border2:#c4cad4;
+    --text:#1a1f2e; --text2:#4a5568; --text3:#8a97ab;
+    --accent:#1847d6; --up:#0a7c4e; --down:#c0392b;
+    --mono:'DM Mono',monospace; --sans:'DM Sans',sans-serif;
+    color-scheme: light;
+  }
+
+  /* ── Dark theme ── */
+  [data-theme="dark"] {
+    --bg:#0a0c0f; --bg2:#111418; --bg3:#181c22;
+    --border:#1e2530; --border2:#2a3340;
+    --text:#c8d4e0; --text2:#6a7f96; --text3:#3d5066;
+    --accent:#1a6fff; --up:#00c896; --down:#ff4757;
+    color-scheme: dark;
+  }
+  [data-theme="dark"] body { background:var(--bg); }
+  [data-theme="dark"] header { background:linear-gradient(135deg, #060a12 0%, #0d1520 100%) !important; box-shadow:0 2px 12px rgba(0,0,0,0.4) !important; }
+  [data-theme="dark"] .tabs,
+  [data-theme="dark"] .controls { background:var(--bg2) !important; box-shadow:none !important; }
+  [data-theme="dark"] .nav-table thead th { background:var(--bg2) !important; color:var(--text2) !important; }
+  [data-theme="dark"] .nav-table thead th.fund-col { background:var(--bg2) !important; }
+  [data-theme="dark"] .nav-table td.fund-name { background:var(--bg2) !important; }
+  [data-theme="dark"] .nav-table td.nav-val,
+  [data-theme="dark"] .nav-table td.aum-val { background:var(--bg2) !important; }
+  [data-theme="dark"] .nav-table tbody tr:hover td { background:rgba(255,255,255,0.04) !important; }
+  [data-theme="dark"] .nav-table tr.cm-row td { background:rgba(26,111,255,0.08) !important; }
+  [data-theme="dark"] .btn { background:var(--bg3) !important; }
+  [data-theme="dark"] input, [data-theme="dark"] select { background:var(--bg3) !important; border-color:var(--border2) !important; color:var(--text) !important; }
+
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans); font-size:15px; -webkit-font-smoothing:antialiased; }
+
+  /* HEADER */
+  header { height:64px; background:linear-gradient(135deg, #0a1628 0%, #142244 100%); border-bottom:none; box-shadow:0 2px 12px rgba(0,0,0,0.15);
+    display:flex; align-items:center; padding:0 28px; gap:16px; position:sticky; top:0; z-index:100; }
+  .logo { font-family:var(--mono); font-size:15px; color:#fff; letter-spacing:4px; font-weight:600; text-transform:uppercase; }
+  .logo .logo-icon { color:#4a9eff; font-size:18px; margin-right:8px; }
+  .logo .logo-sub { display:block; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.45); font-weight:400; margin-top:1px; }
+
+  /* TABS */
+  .tabs { display:flex; gap:0; border-bottom:2px solid var(--border); background:#fff; padding:0 20px; }
+  .tab { padding:10px 20px; font-family:var(--mono); font-size:11px; letter-spacing:1px;
+    cursor:pointer; color:var(--text2); border-bottom:2px solid transparent;
+    transition:all .2s; text-transform:uppercase; }
+  .tab:hover { color:var(--text); }
+  .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+  /* CONTROLS */
+  .controls { display:flex; align-items:center; gap:10px; padding:10px 20px;
+    background:#fff; border-bottom:1px solid var(--border); flex-wrap:wrap; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+  label { font-family:var(--mono); font-size:10px; color:var(--text2); letter-spacing:1px; }
+  select, input[type=text], input[type=date] {
+    background:#fff; border:1px solid var(--border2); color:var(--text);
+    font-family:var(--mono); font-size:11px; padding:5px 8px; border-radius:3px; outline:none; }
+  .btn { padding:6px 14px; border:none; border-radius:3px; cursor:pointer;
+    font-family:var(--mono); font-size:11px; letter-spacing:1px; font-weight:600; }
+  .btn.primary { background:var(--accent); color:#fff; }
+  .sep { width:1px; height:20px; background:var(--border); }
+
+  /* MAIN */
+  main { padding:16px 20px; }
+  .section-title { font-family:var(--mono); font-size:9px; letter-spacing:2.5px;
+    color:var(--text2); text-transform:uppercase; margin:16px 0 8px; }
+
+  /* PAGE SECTIONS */
+  .page { display:none; } .page.active { display:block; }
+
+  /* ── NAV Rankings — Heatmap style ── */
+  .nav-table {
+    width:100%; border-collapse:separate; border-spacing:0;
+    font-family:var(--mono); font-size:11px;
+  }
+  .nav-table thead th {
+    position:sticky; top:0; z-index:10;
+    padding:8px 6px; text-align:center;
+    font-size:9px; font-weight:700; letter-spacing:1px;
+    color:var(--text2); background:#f8f9fb;
+    border-bottom:2px solid var(--border2);
+    text-transform:uppercase; white-space:nowrap;
+    cursor:pointer; user-select:none;
+  }
+  .nav-table thead th:hover { color:var(--accent); }
+  .nav-table thead th.active-sort {
+    color:var(--accent); border-bottom-color:var(--accent);
+    background:rgba(26,111,255,0.08);
+  }
+  .nav-table thead th.fund-col {
+    text-align:left; min-width:100px; width:100px;
+    position:sticky; left:0; background:#f8f9fb; z-index:11;
+    font-size:10px;
+  }
+  .nav-table td {
+    padding:0; border:1px solid rgba(255,255,255,0.04);
+    vertical-align:middle;
+  }
+  .nav-table td.fund-name {
+    position:sticky; left:0; z-index:2;
+    padding:4px 8px; text-align:left;
+    font-size:13px; font-weight:600; color:var(--text);
+    background:#fff; border-right:2px solid var(--border);
+    white-space:nowrap; min-width:100px; max-width:100px;
+    overflow:hidden; text-overflow:ellipsis;
+  }
+  .nav-table td.nav-val {
+    padding:4px 8px; text-align:right;
+    color:var(--text3); font-size:10px;
+    background:#fff; min-width:66px;
+  }
+  .nav-table td.aum-val {
+    padding:4px 8px; text-align:right;
+    color:var(--text2); font-size:10px;
+    background:#fff; border-right:2px solid var(--border);
+    min-width:62px;
+  }
+  .hm-cell {
+    display:flex; flex-direction:row;
+    align-items:center; justify-content:space-between;
+    min-height:22px; padding:2px 6px; gap:0;
+  }
+  .hm-rank { font-size:13px; font-weight:800; line-height:1; flex-shrink:0; text-align:left; }
+  .hm-ret  { font-size:12px; font-weight:600; line-height:1; text-align:right; }
+  .nav-table tr.cm-row td {
+    border-top:2px solid var(--accent) !important;
+    border-bottom:2px solid var(--accent) !important;
+    background:#f0f4ff !important;
+  }
+  .nav-table tr.cm-row td.fund-name {
+    color:var(--accent); font-weight:700;
+    border-left:3px solid var(--accent);
+  }
+  .nav-table tbody tr:hover td { background:#f0f4ff !important; filter:none; }
+
+  /* ── Theme toggle ── */
+  .theme-toggle {
+    display:flex; align-items:center; gap:2px;
+    background:var(--bg3); border:1px solid var(--border2);
+    border-radius:20px; padding:3px; cursor:pointer;
+    margin-left:12px; flex-shrink:0;
+  }
+  .theme-toggle-btn {
+    width:26px; height:22px; border-radius:16px; border:none;
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; cursor:pointer; transition:all .2s;
+    background:transparent;
+  }
+  .theme-toggle-btn.active {
+    background:var(--bg2);
+    box-shadow:0 1px 3px rgba(0,0,0,0.15);
+  }
+  [data-theme="dark"] .theme-toggle-btn.active {
+    box-shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-icon">◆</span>FUND PERFORMANCE TRACKER
+  </div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+    <button onclick="exportToExcel()" style="padding:6px 14px;border:none;border-radius:3px;cursor:pointer;
+      font-family:var(--mono);font-size:11px;letter-spacing:1px;font-weight:600;
+      background:#00c896;color:#000;white-space:nowrap" title="Download all tabs as Excel">⬇ Export Excel</button>
+    <div class="theme-toggle">
+      <button class="theme-toggle-btn active" id="btn-light" onclick="setTheme('light')" title="Light mode">☀️</button>
+      <button class="theme-toggle-btn" id="btn-dark" onclick="setTheme('dark')" title="Dark mode">🌙</button>
+    </div>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" id="tab-nav" onclick="switchTab('nav')">Liquid Ranking</div>
+  <div class="tab" id="tab-arb" onclick="switchTab('arb')">ARB Ranking</div>
+  <div class="tab" id="tab-aum-liq" onclick="switchTab('aum-liq')">Liquid AUM</div>
+  <div class="tab" id="tab-aum-arb" onclick="switchTab('aum-arb')">ARB AUM</div>
+</div>
+
+<!-- NAV RANKINGS PAGE -->
+<div class="page active" id="page-nav">
+  <div class="controls" style="flex-wrap:wrap;gap:8px">
+    <label>Date</label>
+    <select id="nav-date-select" onchange="loadNavRankings()" style="min-width:130px">
+      <option value="">Loading...</option>
+    </select>
+    <label style="margin-left:8px">Sort by</label>
+    <select id="nav-sort-period" onchange="_navAlphaAsc=true;renderNavTable()" style="min-width:100px">
+      <option value="7d">7 Day</option>
+      <option value="1d">1 Day</option>
+      <option value="30d">30 Day</option>
+      <option value="91d">91 Day</option>
+      <option value="184d">184 Day</option>
+      <option value="365d">365 Day</option>
+      <option value="si">Since Inception</option>
+      <option value="alpha">A → Z</option>
+    </select>
+    <label style="margin-left:8px">Show AUM</label>
+    <input type="checkbox" id="nav-show-aum" checked onchange="renderNavTable()" style="margin:0;width:14px;height:14px;accent-color:var(--accent)">
+    <div class="sep"></div>
+    <label style="color:var(--down)">T-1 Override</label>
+    <input type="date" id="nav-t1-override" style="min-width:130px;font-size:11px"
+           title="Holiday override: manually set which date to use as T-1 for 1D return">
+    <button class="btn" onclick="applyNavOverride()"
+            style="background:var(--down);color:#fff;font-size:10px;padding:4px 10px">Apply</button>
+    <button class="btn" onclick="clearNavOverride()"
+            style="background:var(--bg3);color:var(--text2);font-size:10px;padding:4px 10px">Clear</button>
+    <span id="nav-status" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:8px"></span>
+  </div>
+  <main>
+    <div class="section-title" id="nav-title">NAV Rankings — Liquid Funds</div>
+    <div id="nav-table-wrap" style="overflow-x:auto;max-width:100%"></div>
+  </main>
+</div>
+
+<div class="page" id="page-arb">
+  <div class="controls" style="flex-wrap:wrap;gap:8px">
+    <label>Date</label>
+    <select id="arb-date-select" onchange="loadArbRankings()" style="min-width:130px">
+      <option value="">Loading...</option>
+    </select>
+    <label style="margin-left:8px">Sort by</label>
+    <select id="arb-sort-period" onchange="_arbAlphaAsc=true;renderArbTable()" style="min-width:100px">
+      <option value="7d">7 Day</option>
+      <option value="1d">1 Day</option>
+      <option value="30d">30 Day</option>
+      <option value="91d">91 Day</option>
+      <option value="184d">184 Day</option>
+      <option value="365d">365 Day</option>
+      <option value="si">Since Inception</option>
+      <option value="alpha">A → Z</option>
+    </select>
+    <label style="margin-left:8px">Show AUM</label>
+    <input type="checkbox" id="arb-show-aum" checked onchange="renderArbTable()" style="margin:0;width:14px;height:14px;accent-color:var(--accent)">
+    <div class="sep"></div>
+    <label style="color:var(--down)">T-1 Override</label>
+    <input type="date" id="arb-t1-override" style="min-width:130px;font-size:11px"
+           title="Holiday override: manually set which date to use as T-1 for 1D return">
+    <button class="btn" onclick="applyArbOverride()"
+            style="background:var(--down);color:#fff;font-size:10px;padding:4px 10px">Apply</button>
+    <button class="btn" onclick="clearArbOverride()"
+            style="background:var(--bg3);color:var(--text2);font-size:10px;padding:4px 10px">Clear</button>
+    <span id="arb-status" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:8px"></span>
+  </div>
+  <main>
+    <div class="section-title" id="arb-title">ARB Rankings — Arbitrage Funds</div>
+    <div id="arb-table-wrap" style="overflow-x:auto"></div>
+  </main>
+</div>
+
+<div class="page" id="page-aum-liq">
+  <div class="controls" style="flex-wrap:wrap;gap:8px">
+    <span id="aum-liq-status" style="font-family:var(--mono);font-size:11px;color:var(--text3)"></span>
+  </div>
+  <main>
+    <div class="section-title" id="aum-liq-title">LIQUID AUM TRACKER</div>
+    <div id="aum-liq-wrap" style="overflow-x:auto"></div>
+  </main>
+</div>
+
+<div class="page" id="page-aum-arb">
+  <div class="controls" style="flex-wrap:wrap;gap:8px">
+    <span id="aum-arb-status" style="font-family:var(--mono);font-size:11px;color:var(--text3)"></span>
+  </div>
+  <main>
+    <div class="section-title" id="aum-arb-title">ARB AUM TRACKER</div>
+    <div id="aum-arb-wrap" style="overflow-x:auto"></div>
+  </main>
+</div>
+
+<!-- MULTI ASSET AUM PAGE -->
+<div class="page" id="page-aum-multiasset">
+  <div class="controls" style="flex-wrap:wrap;gap:8px">
+    <span id="aum-multiasset-status" style="font-family:var(--mono);font-size:11px;color:var(--text3)"></span>
+  </div>
+  <main>
+    <div class="section-title" id="aum-multiasset-title">MULTI ASSET AUM TRACKER</div>
+    <div id="aum-multiasset-wrap" style="overflow-x:auto"></div>
+  </main>
+</div>
+
+<!-- FLEXI CAP AUM PAGE -->
+<div class="page" id="page-aum-flexi">
+  <div class="controls" style="flex-wrap:wrap;gap:8px">
+    <span id="aum-flexi-status" style="font-family:var(--mono);font-size:11px;color:var(--text3)"></span>
+  </div>
+  <main>
+    <div class="section-title" id="aum-flexi-title">FLEXI CAP AUM TRACKER</div>
+    <div id="aum-flexi-wrap" style="overflow-x:auto"></div>
+  </main>
+</div>
+
+<!-- CM MULTI ASSET RANKING PAGE -->
+<div class="page" id="page-multiasset">
+  <div class="controls" style="flex-wrap:wrap;gap:8px">
+    <label>Date</label>
+    <select id="multiasset-date-select" onchange="loadMultiAssetRankings()" style="min-width:130px">
+      <option value="">Loading...</option>
+    </select>
+    <label style="margin-left:8px">Sort by</label>
+    <select id="multiasset-sort-period" onchange="_multiAssetAlphaAsc=true;renderMultiAssetTable()" style="min-width:100px">
+      <option value="7d">7 Day</option>
+      <option value="1d">1 Day</option>
+      <option value="30d">30 Day</option>
+      <option value="91d">91 Day</option>
+      <option value="184d">184 Day</option>
+      <option value="365d">365 Day</option>
+      <option value="si">Since Inception</option>
+      <option value="alpha">A → Z</option>
+    </select>
+    <label style="margin-left:8px">Show AUM</label>
+    <input type="checkbox" id="multiasset-show-aum" checked onchange="renderMultiAssetTable()" style="margin:0;width:14px;height:14px;accent-color:var(--accent)">
+    <div class="sep"></div>
+    <label style="color:var(--down)">T-1 Override</label>
+    <input type="date" id="multiasset-t1-override" style="min-width:130px;font-size:11px">
+    <button class="btn" onclick="applyMultiAssetOverride()" style="background:var(--down);color:#fff;font-size:10px;padding:4px 10px">Apply</button>
+    <button class="btn" onclick="clearMultiAssetOverride()" style="background:var(--bg3);color:var(--text2);font-size:10px;padding:4px 10px">Clear</button>
+    <span id="multiasset-status" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:8px"></span>
+  </div>
+  <main>
+    <div class="section-title" id="multiasset-title">CM Multi Asset — Peer Rankings</div>
+    <div id="multiasset-table-wrap" style="overflow-x:auto;max-width:100%"></div>
+  </main>
+</div>
+
+<!-- CM FLEXI CAP PAGE -->
+<div class="page" id="page-flexi">
+  <div class="controls" style="flex-wrap:wrap;gap:8px">
+    <label>Date</label>
+    <select id="flexi-date-select" onchange="loadFlexiRankings()" style="min-width:130px">
+      <option value="">Loading...</option>
+    </select>
+    <label style="margin-left:8px">Sort by</label>
+    <select id="flexi-sort-period" onchange="_flexiAlphaAsc=true;renderFlexiTable()" style="min-width:100px">
+      <option value="7d">7 Day</option>
+      <option value="1d">1 Day</option>
+      <option value="30d">30 Day</option>
+      <option value="91d">91 Day</option>
+      <option value="184d">184 Day</option>
+      <option value="365d">365 Day</option>
+      <option value="si">Since Inception</option>
+      <option value="alpha">A → Z</option>
+    </select>
+    <label style="margin-left:8px">Show AUM</label>
+    <input type="checkbox" id="flexi-show-aum" checked onchange="renderFlexiTable()" style="margin:0;width:14px;height:14px;accent-color:var(--accent)">
+    <div class="sep"></div>
+    <label style="color:var(--down)">T-1 Override</label>
+    <input type="date" id="flexi-t1-override" style="min-width:130px;font-size:11px">
+    <button class="btn" onclick="applyFlexiOverride()" style="background:var(--down);color:#fff;font-size:10px;padding:4px 10px">Apply</button>
+    <button class="btn" onclick="clearFlexiOverride()" style="background:var(--bg3);color:var(--text2);font-size:10px;padding:4px 10px">Clear</button>
+    <span id="flexi-status" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:8px"></span>
+  </div>
+  <main>
+    <div class="section-title" id="flexi-title">CM Flexi Cap — Peer Rankings</div>
+    <div id="flexi-table-wrap" style="overflow-x:auto;max-width:100%"></div>
+  </main>
+</div>
+
+<script>
+const API = "";
+let _navData = null;
+let _navAlphaAsc = true;
+let _arbData = null;
+let _arbAlphaAsc = true;
+let _aumLiqData = null;
+let _aumArbData = null;
+let _aumMultiAssetData = null;
+let _aumFlexiData = null;
+let _multiAssetData = null;
+let _multiAssetAlphaAsc = true;
+let _flexiData = null;
+let _flexiAlphaAsc = true;
+
+// ── TAB SWITCHING ──────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  const tabId = tab;
+  document.getElementById("tab-"+tabId).classList.add("active");
+  document.getElementById("page-"+tab).classList.add("active");
+
+  if (tab === "nav")              { if (!_navData) loadNavRankings(); }
+  if (tab === "arb")              { if (!_arbData) loadArbRankings(); }
+  if (tab === "aum-liq")          { loadAumTracker("liquid"); }
+  if (tab === "aum-arb")          { loadAumTracker("arb"); }
+  if (tab === "multiasset")       { if (!_multiAssetData) loadMultiAssetRankings(); }
+  if (tab === "flexi")            { if (!_flexiData) loadFlexiRankings(); }
+  if (tab === "aum-multiasset")   { loadAumTracker("multiasset"); }
+  if (tab === "aum-flexi")        { loadAumTracker("flexi"); }
+}
+
+// ── FORMAT HELPERS ─────────────────────────────────────────────────────────
+function formatDate(iso) {
+  if (!iso) return "—";
+  const [y,m,d] = iso.split("-");
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
+}
+
+// ── Theme toggle ──────────────────────────────────────────────────────────
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('fpt-theme', theme);
+  document.getElementById('btn-light').classList.toggle('active', theme === 'light');
+  document.getElementById('btn-dark').classList.toggle('active',  theme === 'dark');
+  if (_navData) renderNavTable();
+  if (_arbData) renderArbTable();
+  if (_multiAssetData) renderMultiAssetTable();
+  if (_flexiData) renderFlexiTable();
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('fpt-theme') || 'light';
+  document.documentElement.setAttribute('data-theme', saved);
+  document.getElementById('btn-light').classList.toggle('active', saved === 'light');
+  document.getElementById('btn-dark').classList.toggle('active',  saved === 'dark');
+}
+
+async function loadAumTracker(type) {
+  const cfg = {
+    liquid:     { wrap:'aum-liq-wrap',         title:'aum-liq-title',         stat:'aum-liq-status',         endpt:'/api/nav/aum-tracker',         label:'LIQUID' },
+    arb:        { wrap:'aum-arb-wrap',         title:'aum-arb-title',         stat:'aum-arb-status',         endpt:'/api/arb/aum-tracker',         label:'ARB' },
+    multiasset: { wrap:'aum-multiasset-wrap',  title:'aum-multiasset-title',  stat:'aum-multiasset-status',  endpt:'/api/multiasset/aum-tracker',  label:'MULTI ASSET' },
+    flexi:      { wrap:'aum-flexi-wrap',       title:'aum-flexi-title',       stat:'aum-flexi-status',       endpt:'/api/flexi/aum-tracker',       label:'FLEXI CAP' },
+  };
+  const c = cfg[type];
+  const wrap = document.getElementById(c.wrap);
+  wrap.innerHTML = `<div style="padding:20px;color:var(--text3);font-family:var(--mono)">Loading...</div>`;
+  try {
+    const r = await fetch(`${API}${c.endpt}`);
+    const d = await r.json();
+    if (d.error) { wrap.innerHTML = `<div style="padding:20px;color:var(--down)">${d.error}</div>`; return; }
+    if (type === 'liquid')     _aumLiqData = d;
+    else if (type === 'arb')   _aumArbData = d;
+    else if (type === 'multiasset') _aumMultiAssetData = d;
+    else if (type === 'flexi')      _aumFlexiData = d;
+    document.getElementById(c.title).textContent =
+      `${c.label} AUM TRACKER — ${formatDate(d.latest_date)}`;
+    document.getElementById(c.stat).textContent =
+      `7D vs ${formatDate(d.date_7d)}  ·  30D vs ${formatDate(d.date_30d)}  ·  ${d.all_dates.length} dates`;
+    renderAumTable(type);
+  } catch(e) {
+    wrap.innerHTML = `<div style="padding:20px;color:var(--down)">Error: ${e.message}</div>`;
+  }
+}
+
+// AUM sort state
+const _aumSort = {
+  liquid:     {col:'aum', asc:false},
+  arb:        {col:'aum', asc:false},
+  multiasset: {col:'aum', asc:false},
+  flexi:      {col:'aum', asc:false},
+};
+
+function sortAum(type, col) {
+  const s = _aumSort[type];
+  if (s.col === col) { s.asc = !s.asc; } else { s.col = col; s.asc = col === 'alpha'; }
+  renderAumTable(type);
+}
+
+function renderAumTable(type) {
+  const wrapMap = {
+    liquid: 'aum-liq-wrap', arb: 'aum-arb-wrap',
+    multiasset: 'aum-multiasset-wrap', flexi: 'aum-flexi-wrap'
+  };
+  const dataMap = {
+    liquid: _aumLiqData, arb: _aumArbData,
+    multiasset: _aumMultiAssetData, flexi: _aumFlexiData
+  };
+  const data  = dataMap[type];
+  if (!data) return;
+  const wrapId = wrapMap[type];
+  const latest = data.all_dates[0];
+  const dates  = [...data.all_dates];  // newest first
+  const date_7d  = data.date_7d;
+  const date_30d = data.date_30d;
+
+  // Filter out Old Bridge from ARB
+  let funds = data.funds.filter(f => !(type === 'arb' && f.fund_label === 'Old Bridge'));
+
+  // Compute absolute 7D and 30D change for each fund
+  funds = funds.map(f => {
+    const aumNow  = f.aum_history?.[latest] ?? null;
+    const aum7d   = date_7d  ? (f.aum_history?.[date_7d]  ?? null) : null;
+    const aum30d  = date_30d ? (f.aum_history?.[date_30d] ?? null) : null;
+    return {
+      ...f,
+      abs_7d:  (aumNow != null && aum7d  != null) ? Math.round(aumNow - aum7d)  : null,
+      abs_30d: (aumNow != null && aum30d != null) ? Math.round(aumNow - aum30d) : null,
+    };
+  });
+
+  // Sort
+  const s = _aumSort[type];
+  funds = [...funds].sort((a, b) => {
+    let va, vb;
+    if (s.col === 'alpha')  { va = a.fund_label; vb = b.fund_label; }
+    else if (s.col === '7d')     { va = a.chg_7d   ?? -Infinity; vb = b.chg_7d   ?? -Infinity; }
+    else if (s.col === '30d')    { va = a.chg_30d  ?? -Infinity; vb = b.chg_30d  ?? -Infinity; }
+    else if (s.col === 'abs7d')  { va = a.abs_7d   ?? -Infinity; vb = b.abs_7d   ?? -Infinity; }
+    else if (s.col === 'abs30d') { va = a.abs_30d  ?? -Infinity; vb = b.abs_30d  ?? -Infinity; }
+    else if (s.col === 'aum')    { va = a.aum_history?.[latest] ?? 0; vb = b.aum_history?.[latest] ?? 0; }
+    else { va = a.aum_history?.[s.col] ?? 0; vb = b.aum_history?.[s.col] ?? 0; }
+    if (typeof va === 'string') return s.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    if (va < vb) return s.asc ? -1 :  1;
+    if (va > vb) return s.asc ?  1 : -1;
+    return 0;
+  });
+
+  const isDark    = document.documentElement.getAttribute('data-theme') === 'dark';
+  const upColor   = isDark ? '#4ade80' : '#065f3c';
+  const downColor = isDark ? '#f87171' : '#991b1b';
+  const flatColor = isDark ? '#64748b' : '#94a3b8';
+  const textMain  = isDark ? '#e2e8f0' : '#0d1117';
+  const textDim   = isDark ? '#94a3b8' : '#475569';
+  const bgEven    = isDark ? '#0f1623' : '#ffffff';
+  const bgOdd     = isDark ? '#141c2b' : '#f8fafc';
+  const bgCM      = isDark ? '#1a2d4a' : '#dbeafe';
+  const bgHead    = isDark ? '#0a0f1a' : '#e8ecf0';
+  const bgTotal   = isDark ? '#1a1f2e' : '#e2e8f0';
+  const borderCol = isDark ? '#1e293b' : '#d1d5db';
+  const border2   = isDark ? '#334155' : '#9ca3af';
+  const accentCol = isDark ? '#60a5fa' : '#1338b0';
+
+  function arrow(col) {
+    if (s.col !== col) return ' <span style="opacity:0.3">↕</span>';
+    return s.asc ? ' ↑' : ' ↓';
+  }
+
+  function chgCell(val) {
+    if (val == null) return `<span style="color:${flatColor};font-size:11px">—</span>`;
+    const color = val > 0.1 ? upColor : val < -0.1 ? downColor : flatColor;
+    const bg    = val > 0.1 ? (isDark?'rgba(74,222,128,0.10)':'rgba(6,95,60,0.07)')
+                : val < -0.1 ? (isDark?'rgba(248,113,113,0.10)':'rgba(153,27,27,0.07)')
+                : 'transparent';
+    return `<span style="display:inline-block;padding:1px 6px;border-radius:4px;background:${bg};
+      font-weight:700;font-size:13px;color:${color}">${val>0?'+':''}${val.toFixed(2)}%</span>`;
+  }
+
+  function absCell(val) {
+    if (val == null) return `<span style="color:${flatColor};font-size:11px">—</span>`;
+    const color = val > 0 ? upColor : val < 0 ? downColor : flatColor;
+    const bg    = val > 0 ? (isDark?'rgba(74,222,128,0.10)':'rgba(6,95,60,0.07)')
+                : val < 0 ? (isDark?'rgba(248,113,113,0.10)':'rgba(153,27,27,0.07)')
+                : 'transparent';
+    const sign  = val > 0 ? '+' : '';
+    return `<span style="display:inline-block;padding:1px 6px;border-radius:4px;background:${bg};
+      font-weight:700;font-size:13px;color:${color}">${sign}${Number(val).toLocaleString('en-IN')}</span>`;
+  }
+
+  function fmtAum(val) {
+    if (val == null) return `<span style="color:${flatColor}">—</span>`;
+    return `<span style="color:${textMain}">${Number(val).toLocaleString('en-IN',{maximumFractionDigits:0})}</span>`;
+  }
+
+  const thBase = `padding:8px 10px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1px;
+    color:${textDim};text-transform:uppercase;white-space:nowrap;background:${bgHead};
+    border-bottom:2px solid ${border2};position:sticky;top:0;z-index:3;cursor:pointer;user-select:none;font-size:11px;`;
+
+  let html = `<table style="border-collapse:collapse;font-family:var(--mono);font-size:13px;min-width:100%">
+  <thead><tr>
+    <th onclick="sortAum('${type}','alpha')"
+        style="${thBase}text-align:left;position:sticky;left:0;z-index:5;min-width:155px;background:${bgHead}">
+      Fund${arrow('alpha')}</th>
+    <th onclick="sortAum('${type}','7d')"    style="${thBase}min-width:85px">7D %${arrow('7d')}</th>
+    <th onclick="sortAum('${type}','30d')"   style="${thBase}min-width:85px">30D %${arrow('30d')}</th>
+    <th onclick="sortAum('${type}','abs7d')"  style="${thBase}min-width:90px">7D Abs${arrow('abs7d')}</th>
+    <th onclick="sortAum('${type}','abs30d')" style="${thBase}min-width:90px">30D Abs${arrow('abs30d')}</th>
+    <th onclick="sortAum('${type}','aum')"
+        style="${thBase}min-width:100px;color:${accentCol};border-left:2px solid ${border2}">
+      ${formatDate(latest)}${arrow('aum')}<br><span style="font-size:8px;opacity:0.6">(Cr)</span></th>`;
+
+  dates.filter(d => d !== latest).forEach(d => {
+    html += `<th onclick="sortAum('${type}','${d}')"
+      style="${thBase}min-width:88px">${formatDate(d)}${arrow(d)}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  // Track totals
+  let totalLatest = 0;
+  const totalByDate = {};
+  let totalAbs7d = 0, totalAbs30d = 0;
+
+  funds.forEach((f, i) => {
+    const isCM  = f.fund_label === 'Capitalmind';
+    const rowBg = isCM ? bgCM : (i%2===0 ? bgEven : bgOdd);
+    const cmBdr = isCM ? `border-top:2px solid ${accentCol};border-bottom:2px solid ${accentCol};` : '';
+    const nameSt= isCM ? `color:${accentCol};font-weight:700` : `color:${textMain};font-weight:600`;
+    const td    = `padding:3px 7px;border-bottom:1px solid ${borderCol};`;
+
+    // Accumulate totals
+    const aumLatest = f.aum_history?.[latest] ?? 0;
+    totalLatest += aumLatest;
+    totalAbs7d  += f.abs_7d  ?? 0;
+    totalAbs30d += f.abs_30d ?? 0;
+    dates.filter(d => d !== latest).forEach(d => {
+      totalByDate[d] = (totalByDate[d] ?? 0) + (f.aum_history?.[d] ?? 0);
+    });
+
+    html += `<tr style="background:${rowBg};${cmBdr}">
+      <td style="${td}${nameSt};position:sticky;left:0;background:${rowBg};z-index:2;white-space:nowrap">
+        ${isCM?'▶ ':''}${f.fund_label}</td>
+      <td style="${td}text-align:right">${chgCell(f.chg_7d)}</td>
+      <td style="${td}text-align:right">${chgCell(f.chg_30d)}</td>
+      <td style="${td}text-align:right">${absCell(f.abs_7d)}</td>
+      <td style="${td}text-align:right">${absCell(f.abs_30d)}</td>
+      <td style="${td}text-align:right;font-weight:700;border-left:2px solid ${border2}">${fmtAum(f.aum_history?.[latest])}</td>`;
+
+    dates.filter(d => d !== latest).forEach(d => {
+      html += `<td style="${td}text-align:right;color:${textDim}">${fmtAum(f.aum_history?.[d])}</td>`;
+    });
+    html += `</tr>`;
+  });
+
+  // ── TOTALS ROW ──
+  const tdTotal = `padding:5px 7px;border-top:2px solid ${border2};font-weight:800;font-size:13px;`;
+  html += `<tr style="background:${bgTotal}">
+    <td style="${tdTotal}position:sticky;left:0;background:${bgTotal};z-index:2;color:${accentCol}">TOTAL</td>
+    <td style="${tdTotal}text-align:right"></td>
+    <td style="${tdTotal}text-align:right"></td>
+    <td style="${tdTotal}text-align:right">${absCell(totalAbs7d)}</td>
+    <td style="${tdTotal}text-align:right">${absCell(totalAbs30d)}</td>
+    <td style="${tdTotal}text-align:right;color:${accentCol};border-left:2px solid ${border2}">${Number(Math.round(totalLatest)).toLocaleString('en-IN')}</td>`;
+  dates.filter(d => d !== latest).forEach(d => {
+    const t = totalByDate[d] ?? 0;
+    html += `<td style="${tdTotal}text-align:right;color:${textDim}">${t ? Number(Math.round(t)).toLocaleString('en-IN') : '—'}</td>`;
+  });
+  html += `</tr>`;
+
+  html += `</tbody></table>`;
+  document.getElementById(wrapId).innerHTML = html;
+}
+
+async function loadNavDates() {
+  try {
+    const r = await fetch(`${API}/api/nav/dates`);
+    const d = await r.json();
+    const sel = document.getElementById("nav-date-select");
+    if (!d.dates || !d.dates.length) {
+      sel.innerHTML = '<option value="">No data — run nav_ingest.py</option>';
+      return;
+    }
+    sel.innerHTML = d.dates.map(dt =>
+      `<option value="${dt}">${formatDate(dt)}</option>`
+    ).join("");
+    loadNavRankings();
+  } catch(e) { console.error("NAV dates error:", e); }
+}
+
+async function loadNavRankings() {
+  const date = document.getElementById("nav-date-select").value;
+  if (!date) return;
+  const wrap = document.getElementById("nav-table-wrap");
+  wrap.innerHTML = `<div style="padding:20px;color:var(--text3);font-family:var(--mono)">Loading...</div>`;
+  try {
+    const r = await fetch(`${API}/api/nav/rankings?date=${date}`);
+    const d = await r.json();
+    if (d.error) { wrap.innerHTML = `<div style="padding:20px;color:var(--down)">${d.error}</div>`; return; }
+    _navData = d;
+    const overrideNote = d.t1_override ? ` · T-1 override: ${d.t1_override}` : "";
+    document.getElementById("nav-title").textContent =
+      `NAV Rankings — Liquid Funds — ${formatDate(date)}${overrideNote}`;
+    // Pre-fill override picker if one exists
+    document.getElementById("nav-t1-override").value = d.t1_override || "";
+    renderNavTable();
+  } catch(e) {
+    wrap.innerHTML = `<div style="padding:20px;color:var(--down)">Error: ${e.message}</div>`;
+  }
+}
+
+function rankColor(rank, total) {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (rank == null || total == null) return {
+    bg: isDark ? "#181c22" : "#f4f5f7",
+    border: isDark ? "#2a3340" : "#dde1e8",
+    fg: isDark ? "#3d5066" : "#6b7280"
+  };
+  const pct = (rank - 1) / Math.max(total - 1, 1);
+  let r, g, b;
+  if (pct < 0.5) {
+    const t = pct * 2;
+    r = Math.round(0   + t * 255);
+    g = Math.round(180 + t * 30);
+    b = Math.round(100 - t * 100);
+  } else {
+    const t = (pct - 0.5) * 2;
+    r = 255;
+    g = Math.round(210 - t * 160);
+    b = 0;
+  }
+  const alpha       = isDark ? 0.22 : 0.18;
+  const borderAlpha = isDark ? 0.55 : 0.45;
+  const bg     = `rgba(${r},${g},${b},${alpha})`;
+  const border = `rgba(${r},${g},${b},${borderAlpha})`;
+  const fg = isDark
+    ? (pct < 0.5 ? `rgb(${Math.round(r*0.6+100)},${Math.round(g*0.8+30)},${Math.round(b*0.5+80)})` : `rgb(255,${Math.round(g*0.7+50)},${Math.round(b*0.3+30)})`)
+    : "#0d1117";
+  return {bg, border, fg};
+}
+
+function renderNavTable() {
+  if (!_navData) return;
+  const sortPeriod = document.getElementById("nav-sort-period").value;
+  const showAUM    = document.getElementById("nav-show-aum").checked;
+  const funds      = [..._navData.funds];
+  const periods    = ["1d","7d","30d","91d","184d","365d","si"];
+  const nFunds     = funds.length;
+
+  if (sortPeriod === "alpha") {
+    funds.sort((a, b) => _navAlphaAsc
+      ? a.fund_label.localeCompare(b.fund_label)
+      : b.fund_label.localeCompare(a.fund_label));
+  } else {
+    funds.sort((a, b) => {
+      const ra = a[`rank_${sortPeriod}`], rb = b[`rank_${sortPeriod}`];
+      if (ra == null && rb == null) return 0;
+      if (ra == null) return 1; if (rb == null) return -1;
+      return ra - rb;
+    });
+  }
+
+  const n1d = funds.find(f => f.n_1d != null)?.n_1d;
+  const pLabel = {
+    "1d": n1d && n1d !== 1 ? `1D (${n1d})` : "1D",
+    "7d":"7D","30d":"30D","91d":"91D","184d":"184D","365d":"365D","si":"SI"
+  };
+
+  // ── Header ──
+  let html = `<table class="nav-table"><thead><tr>
+    <th class="fund-col" onclick="
+      if(document.getElementById('nav-sort-period').value==='alpha'){
+        _navAlphaAsc=!_navAlphaAsc;
+      } else {
+        document.getElementById('nav-sort-period').value='alpha';_navAlphaAsc=true;
+      }
+      renderNavTable()">
+      Liquid Funds ${sortPeriod==='alpha'?(_navAlphaAsc?'&#9650;':'&#9660;'):'&#8597;'}
+    </th>
+    `;
+  if (showAUM) html += `<th style="text-align:right;width:50px">AUM (Cr)</th>`;
+  periods.forEach(p => {
+    const active = p === sortPeriod;
+    html += `<th class="${active?'active-sort':''}" style="width:80px"
+      onclick="document.getElementById('nav-sort-period').value='${p}';renderNavTable()">
+      ${pLabel[p]}
+    </th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  // ── Rows ──
+  funds.forEach((f, ri) => {
+    const isCM = f.fund_label === "Capitalmind";
+    html += `<tr class="${isCM?'cm-row':''}">
+      <td class="fund-name">${isCM?'&#9654; ':''}${f.fund_label}</td>
+`;
+    if (showAUM) {
+      html += `<td class="aum-val">${f.aum_cr!=null?Math.round(f.aum_cr).toLocaleString():'&#8212;'}</td>`;
+    }
+    periods.forEach(p => {
+      const rank = f[`rank_${p}`];
+      const ret  = f[`ret_${p}`];
+      if (rank == null && ret == null) {
+        html += `<td style="background:var(--bg2)"><div class="hm-cell"><span style="color:var(--text3);font-size:11px">&#8212;</span></div></td>`;
+        return;
+      }
+      // If rank null but ret exists (fund too new for this period), show ret only with neutral color
+      if (rank == null) {
+        const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+        const nbg = isDarkMode ? "var(--bg3)" : "var(--bg3)";
+        html += `<td style="background:${nbg}"><div class="hm-cell"><span class="hm-rank" style="color:var(--text3)">—</span><span class="hm-ret" style="color:var(--text3)">${ret.toFixed(2)}%</span></div></td>`;
+        return;
+      }
+      const {bg, border, fg} = rankColor(rank, nFunds);
+      const retStr = ret != null ? ret.toFixed(2)+"%" : "";
+      html += `<td style="background:${bg};border:1px solid ${border}">
+        <div class="hm-cell">
+          <span class="hm-rank" style="color:${fg}">${rank??''}</span>
+          <span class="hm-ret" style="color:${fg}">${retStr}</span>
+        </div>
+      </td>`;
+    });
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table>`;
+  document.getElementById("nav-table-wrap").innerHTML = html;
+  const sortLabel = sortPeriod==="alpha"?(_navAlphaAsc?"A\u2192Z":"Z\u2192A"):pLabel[sortPeriod];
+  document.getElementById("nav-status").textContent =
+    `${funds.length} funds \u00b7 sorted by ${sortLabel} \u00b7 annualised returns`;
+}
+
+async function applyArbOverride() {
+  const navDate = document.getElementById("arb-date-select").value;
+  const t1Date  = document.getElementById("arb-t1-override").value;
+  const status  = document.getElementById("arb-status");
+  if (!navDate || !t1Date) {
+    status.textContent = "Select both a NAV date and a T-1 override date first";
+    status.style.color = "var(--down)";
+    return;
+  }
+  status.textContent = "Applying override...";
+  status.style.color = "var(--text3)";
+  try {
+    const r = await fetch(`${API}/api/arb/override`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({nav_date: navDate, t1_date: t1Date})
+    });
+    const d = await r.json();
+    if (d.error) {
+      status.textContent = "Error: " + d.error;
+      status.style.color = "var(--down)";
+    } else {
+      status.textContent = `Override applied: T-1 set to ${t1Date}`;
+      status.style.color = "var(--up)";
+      loadArbRankings();  // reload the table
+    }
+  } catch(e) {
+    status.textContent = "Error: " + e.message;
+    status.style.color = "var(--down)";
+  }
+}
+
+function clearArbOverride() {
+  document.getElementById("arb-t1-override").value = "";
+  document.getElementById("arb-status").textContent = "Override cleared";
+  document.getElementById("arb-status").style.color = "var(--text3)";
+}
+
+async function applyNavOverride() {
+  const navDate = document.getElementById("nav-date-select").value;
+  const t1Date  = document.getElementById("nav-t1-override").value;
+  const status  = document.getElementById("nav-status");
+  if (!navDate || !t1Date) {
+    status.textContent = "Select both a NAV date and a T-1 override date first";
+    status.style.color = "var(--down)";
+    return;
+  }
+  status.textContent = "Applying override...";
+  status.style.color = "var(--text3)";
+  try {
+    const r = await fetch(`${API}/api/nav/override`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({nav_date: navDate, t1_date: t1Date})
+    });
+    const d = await r.json();
+    if (d.error) {
+      status.textContent = "Error: " + d.error;
+      status.style.color = "var(--down)";
+    } else {
+      status.textContent = `Override applied: T-1 set to ${t1Date}`;
+      status.style.color = "var(--up)";
+      loadNavRankings();  // reload the table
+    }
+  } catch(e) {
+    status.textContent = "Error: " + e.message;
+    status.style.color = "var(--down)";
+  }
+}
+
+function clearNavOverride() {
+  document.getElementById("nav-t1-override").value = "";
+  document.getElementById("nav-status").textContent = "Override cleared";
+  document.getElementById("nav-status").style.color = "var(--text3)";
+}
+
+async function loadArbDates() {
+  try {
+    const r = await fetch(`${API}/api/arb/dates`);
+    const d = await r.json();
+    const sel = document.getElementById("arb-date-select");
+    if (!d.dates || !d.dates.length) {
+      sel.innerHTML = '<option value="">No data — run nav_ingest.py</option>';
+      return;
+    }
+    sel.innerHTML = d.dates.map(dt =>
+      `<option value="${dt}">${formatDate(dt)}</option>`
+    ).join("");
+    loadArbRankings();
+  } catch(e) { console.error("NAV dates error:", e); }
+}
+
+async function loadArbRankings() {
+  const date = document.getElementById("arb-date-select").value;
+  if (!date) return;
+  const wrap = document.getElementById("arb-table-wrap");
+  wrap.innerHTML = `<div style="padding:20px;color:var(--text3);font-family:var(--mono)">Loading...</div>`;
+  try {
+    const r = await fetch(`${API}/api/arb/rankings?date=${date}`);
+    const d = await r.json();
+    if (d.error) { wrap.innerHTML = `<div style="padding:20px;color:var(--down)">${d.error}</div>`; return; }
+    _arbData = d;
+    const overrideNote = d.t1_override ? ` · T-1 override: ${d.t1_override}` : "";
+    document.getElementById("arb-title").textContent =
+      `ARB Rankings — Arbitrage Funds — ${formatDate(date)}${overrideNote}`;
+    // Pre-fill override picker if one exists
+    document.getElementById("arb-t1-override").value = d.t1_override || "";
+    renderArbTable();
+  } catch(e) {
+    wrap.innerHTML = `<div style="padding:20px;color:var(--down)">Error: ${e.message}</div>`;
+  }
+}
+
+function rankColor(rank, total) {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (rank == null || total == null) return {
+    bg: isDark ? "#181c22" : "#f4f5f7",
+    border: isDark ? "#2a3340" : "#dde1e8",
+    fg: isDark ? "#3d5066" : "#6b7280"
+  };
+  const pct = (rank - 1) / Math.max(total - 1, 1);
+  let r, g, b;
+  if (pct < 0.5) {
+    const t = pct * 2;
+    r = Math.round(0   + t * 255);
+    g = Math.round(180 + t * 30);
+    b = Math.round(100 - t * 100);
+  } else {
+    const t = (pct - 0.5) * 2;
+    r = 255;
+    g = Math.round(210 - t * 160);
+    b = 0;
+  }
+  const alpha       = isDark ? 0.22 : 0.18;
+  const borderAlpha = isDark ? 0.55 : 0.45;
+  const bg     = `rgba(${r},${g},${b},${alpha})`;
+  const border = `rgba(${r},${g},${b},${borderAlpha})`;
+  const fg = isDark
+    ? (pct < 0.5 ? `rgb(${Math.round(r*0.6+100)},${Math.round(g*0.8+30)},${Math.round(b*0.5+80)})` : `rgb(255,${Math.round(g*0.7+50)},${Math.round(b*0.3+30)})`)
+    : "#0d1117";
+  return {bg, border, fg};
+}
+
+function renderArbTable() {
+  if (!_arbData) return;
+  const sortPeriod = document.getElementById("arb-sort-period").value;
+  const showAUM    = document.getElementById("arb-show-aum").checked;
+  const funds      = [..._arbData.funds];
+  const periods    = ["1d","7d","30d","91d","184d","365d","si"];
+  const nFunds     = funds.length;
+
+  if (sortPeriod === "alpha") {
+    funds.sort((a, b) => _arbAlphaAsc
+      ? a.fund_label.localeCompare(b.fund_label)
+      : b.fund_label.localeCompare(a.fund_label));
+  } else {
+    funds.sort((a, b) => {
+      const ra = a[`rank_${sortPeriod}`], rb = b[`rank_${sortPeriod}`];
+      if (ra == null && rb == null) return 0;
+      if (ra == null) return 1; if (rb == null) return -1;
+      return ra - rb;
+    });
+  }
+
+  const n1d = funds.find(f => f.n_1d != null)?.n_1d;
+  const pLabel = {
+    "1d": n1d && n1d !== 1 ? `1D (${n1d})` : "1D",
+    "7d":"7D","30d":"30D","91d":"91D","184d":"184D","365d":"365D","si":"SI"
+  };
+
+  // ── Header ──
+  let html = `<table class="nav-table"><thead><tr>
+    <th class="fund-col" onclick="
+      if(document.getElementById('arb-sort-period').value==='alpha'){
+        _arbAlphaAsc=!_arbAlphaAsc;
+      } else {
+        document.getElementById('arb-sort-period').value='alpha';_arbAlphaAsc=true;
+      }
+      renderArbTable()">
+      Arbitrage Funds ${sortPeriod==='alpha'?(_arbAlphaAsc?'&#9650;':'&#9660;'):'&#8597;'}
+    </th>
+    `;
+  if (showAUM) html += `<th style="text-align:right;width:50px">AUM (Cr)</th>`;
+  periods.forEach(p => {
+    const active = p === sortPeriod;
+    html += `<th class="${active?'active-sort':''}" style="width:80px"
+      onclick="document.getElementById('arb-sort-period').value='${p}';renderArbTable()">
+      ${pLabel[p]}
+    </th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  // ── Rows ──
+  funds.forEach((f, ri) => {
+    const isCM = f.fund_label === "Capitalmind";
+    html += `<tr class="${isCM?'cm-row':''}">
+      <td class="fund-name">${isCM?'&#9654; ':''}${f.fund_label}</td>
+`;
+    if (showAUM) {
+      html += `<td class="aum-val">${f.aum_cr!=null?Math.round(f.aum_cr).toLocaleString():'&#8212;'}</td>`;
+    }
+    periods.forEach(p => {
+      const rank = f[`rank_${p}`];
+      const ret  = f[`ret_${p}`];
+      if (rank == null && ret == null) {
+        html += `<td style="background:var(--bg2)"><div class="hm-cell"><span style="color:var(--text3);font-size:11px">&#8212;</span></div></td>`;
+        return;
+      }
+      // If rank null but ret exists (fund too new for this period), show ret only with neutral color
+      if (rank == null) {
+        const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+        const nbg = isDarkMode ? "var(--bg3)" : "var(--bg3)";
+        html += `<td style="background:${nbg}"><div class="hm-cell"><span class="hm-rank" style="color:var(--text3)">—</span><span class="hm-ret" style="color:var(--text3)">${ret.toFixed(2)}%</span></div></td>`;
+        return;
+      }
+      const {bg, border, fg} = rankColor(rank, nFunds);
+      const retStr = ret != null ? ret.toFixed(2)+"%" : "";
+      html += `<td style="background:${bg};border:1px solid ${border}">
+        <div class="hm-cell">
+          <span class="hm-rank" style="color:${fg}">${rank??''}</span>
+          <span class="hm-ret" style="color:${fg}">${retStr}</span>
+        </div>
+      </td>`;
+    });
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table>`;
+  document.getElementById("arb-table-wrap").innerHTML = html;
+  const sortLabel = sortPeriod==="alpha"?(_arbAlphaAsc?"A\u2192Z":"Z\u2192A"):pLabel[sortPeriod];
+  document.getElementById("arb-status").textContent =
+    `${funds.length} funds \u00b7 sorted by ${sortLabel} \u00b7 annualised returns`;
+}
+
+// ── EXCEL EXPORT ──────────────────────────────────────────────────────────
+async function exportToExcel() {
+  const btn = event.target;
+  btn.textContent = "⏳ Loading...";
+  btn.disabled = true;
+
+  try {
+    // Load any missing data
+    const fetches = [];
+    if (!_navData) {
+      fetches.push(fetch(`${API}/api/nav/dates`).then(r => r.json()).then(async d => {
+        if (d.dates && d.dates.length) {
+          const r = await fetch(`${API}/api/nav/rankings?date=${d.dates[0]}`);
+          _navData = await r.json();
+        }
+      }));
+    }
+    if (!_arbData) {
+      fetches.push(fetch(`${API}/api/arb/dates`).then(r => r.json()).then(async d => {
+        if (d.dates && d.dates.length) {
+          const r = await fetch(`${API}/api/arb/rankings?date=${d.dates[0]}`);
+          _arbData = await r.json();
+        }
+      }));
+    }
+    if (!_aumLiqData) {
+      fetches.push(fetch(`${API}/api/nav/aum-tracker`).then(r => r.json()).then(d => {
+        if (!d.error) _aumLiqData = d;
+      }));
+    }
+    if (!_aumArbData) {
+      fetches.push(fetch(`${API}/api/arb/aum-tracker`).then(r => r.json()).then(d => {
+        if (!d.error) _aumArbData = d;
+      }));
+    }
+    if (fetches.length) await Promise.all(fetches);
+
+    const wb = XLSX.utils.book_new();
+  const periods = ["1d","7d","30d","91d","184d","365d","si"];
+  const pLabel = {"1d":"1D","7d":"7D","30d":"30D","91d":"91D","184d":"184D","365d":"365D","si":"SI"};
+
+  // Helper: build ranking sheet with colour-coded heatmap, sorted by 7D rank
+  function buildRankingSheet(data, label) {
+    if (!data || !data.funds || !data.funds.length) return null;
+    const nFunds = data.funds.length;
+    const funds = [...data.funds].sort((a,b) => {
+      const ra = a.rank_7d, rb = b.rank_7d;
+      if (ra == null && rb == null) return 0;
+      if (ra == null) return 1; if (rb == null) return -1;
+      return ra - rb;
+    });
+
+    const rows = [];
+    // Header row
+    const header = ["Fund", "AUM (Cr)"];
+    periods.forEach(p => { header.push(`Rank ${pLabel[p]}`); header.push(`Return ${pLabel[p]} (%)`); });
+    rows.push(header);
+    // Data rows
+    funds.forEach(f => {
+      const row = [f.fund_label, f.aum_cr != null ? Math.round(f.aum_cr) : ""];
+      periods.forEach(p => {
+        row.push(f[`rank_${p}`] != null ? f[`rank_${p}`] : "");
+        row.push(f[`ret_${p}`] != null ? Math.round(f[`ret_${p}`] * 100) / 100 : "");
+      });
+      rows.push(row);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Column widths
+    const colWidths = [{wch:22},{wch:10}];
+    periods.forEach(() => { colWidths.push({wch:8}); colWidths.push({wch:10}); });
+    ws['!cols'] = colWidths;
+
+    // Apply heatmap colours to rank cells
+    function rankToColor(rank, total) {
+      if (rank == null || total == null || total <= 1) return null;
+      const pct = (rank - 1) / (total - 1); // 0 = best, 1 = worst
+      let r, g, b;
+      if (pct < 0.5) {
+        const t = pct * 2;
+        r = Math.round(200 * t);
+        g = Math.round(180 + 20 * t);
+        b = Math.round(140 * (1 - t));
+      } else {
+        const t = (pct - 0.5) * 2;
+        r = Math.round(200 + 55 * t);
+        g = Math.round(200 - 130 * t);
+        b = Math.round(70 * (1 - t));
+      }
+      return ("00" + r.toString(16)).slice(-2) + ("00" + g.toString(16)).slice(-2) + ("00" + b.toString(16)).slice(-2);
+    }
+
+    // Style header row
+    const totalCols = 2 + periods.length * 2;
+    for (let c = 0; c < totalCols; c++) {
+      const addr = XLSX.utils.encode_cell({r:0, c:c});
+      if (!ws[addr]) continue;
+      ws[addr].s = {
+        font: {bold: true, sz: 10, color: {rgb: "FFFFFF"}},
+        fill: {fgColor: {rgb: "0A1628"}},
+        alignment: {horizontal: "center"},
+        border: {bottom: {style: "thin", color: {rgb: "333333"}}}
+      };
+    }
+    // Fund name header left-aligned
+    const fundHeader = XLSX.utils.encode_cell({r:0, c:0});
+    if (ws[fundHeader]) ws[fundHeader].s.alignment = {horizontal: "left"};
+
+    // Style data rows
+    for (let ri = 0; ri < funds.length; ri++) {
+      const f = funds[ri];
+      const isCM = f.fund_label === "Capitalmind";
+      const rowIdx = ri + 1; // +1 for header
+
+      for (let c = 0; c < totalCols; c++) {
+        const addr = XLSX.utils.encode_cell({r: rowIdx, c: c});
+        if (!ws[addr]) continue;
+
+        const cellStyle = {
+          font: {sz: 10},
+          alignment: {horizontal: c <= 1 ? "left" : "center"},
+          border: {
+            bottom: {style: "thin", color: {rgb: "E0E0E0"}}
+          }
+        };
+
+        // CM row highlight
+        if (isCM) {
+          cellStyle.font = {sz: 10, bold: true, color: {rgb: "1847D6"}};
+          cellStyle.fill = {fgColor: {rgb: "E8EFFF"}};
+        }
+
+        // Rank columns: 2,4,6,8,10,12,14 (every even col starting from 2)
+        if (c >= 2 && c % 2 === 0) {
+          const pIdx = (c - 2) / 2;
+          const p = periods[pIdx];
+          const rank = f[`rank_${p}`];
+          const bgHex = rankToColor(rank, nFunds);
+          if (bgHex) {
+            cellStyle.fill = {fgColor: {rgb: bgHex}};
+            cellStyle.font = {sz: 10, bold: true};
+            if (isCM) cellStyle.font.color = {rgb: "1847D6"};
+          }
+        }
+
+        // Return columns: 3,5,7,9,11,13,15
+        if (c >= 3 && c % 2 === 1) {
+          cellStyle.numFmt = "0.00";
+        }
+
+        ws[addr].s = cellStyle;
+      }
+    }
+
+    return ws;
+  }
+
+  // Helper: build AUM sheet sorted by 7D%, with colour-coded % change, abs columns, and totals row
+  function buildAumSheet(data, type) {
+    if (!data || !data.funds || !data.funds.length) return null;
+    const latest = data.all_dates[0];
+    const dates = [...data.all_dates];
+    const date_7d  = data.date_7d;
+    const date_30d = data.date_30d;
+    let funds = data.funds.filter(f => !(type === 'arb' && f.fund_label === 'Old Bridge'));
+
+    // Compute absolute changes
+    funds = funds.map(f => {
+      const aumNow  = f.aum_history?.[latest] ?? null;
+      const aum7d   = date_7d  ? (f.aum_history?.[date_7d]  ?? null) : null;
+      const aum30d  = date_30d ? (f.aum_history?.[date_30d] ?? null) : null;
+      return {
+        ...f,
+        abs_7d:  (aumNow != null && aum7d  != null) ? Math.round(aumNow - aum7d)  : null,
+        abs_30d: (aumNow != null && aum30d != null) ? Math.round(aumNow - aum30d) : null,
+      };
+    });
+
+    // Sort by 7D % descending
+    funds.sort((a,b) => (b.chg_7d ?? -Infinity) - (a.chg_7d ?? -Infinity));
+
+    const rows = [];
+    // Header
+    const header = ["Fund", "7D %", "30D %", "7D Abs (Cr)", "30D Abs (Cr)"];
+    dates.forEach(d => header.push(d));
+    rows.push(header);
+
+    // Data rows + accumulate totals
+    let totalLatest = 0, totalAbs7d = 0, totalAbs30d = 0;
+    const totalByDate = {};
+
+    funds.forEach(f => {
+      const aumLatest = f.aum_history?.[latest] ?? 0;
+      totalLatest += aumLatest;
+      totalAbs7d  += f.abs_7d  ?? 0;
+      totalAbs30d += f.abs_30d ?? 0;
+
+      const row = [
+        f.fund_label,
+        f.chg_7d != null ? Math.round(f.chg_7d * 100) / 100 : "",
+        f.chg_30d != null ? Math.round(f.chg_30d * 100) / 100 : "",
+        f.abs_7d != null ? f.abs_7d : "",
+        f.abs_30d != null ? f.abs_30d : "",
+      ];
+      dates.forEach(d => {
+        const v = f.aum_history?.[d] != null ? Math.round(f.aum_history[d]) : "";
+        row.push(v);
+        if (v !== "") totalByDate[d] = (totalByDate[d] ?? 0) + v;
+      });
+      rows.push(row);
+    });
+
+    // Totals row
+    const totalRow = ["TOTAL", "", "", totalAbs7d, totalAbs30d];
+    dates.forEach(d => totalRow.push(totalByDate[d] ? Math.round(totalByDate[d]) : ""));
+    rows.push(totalRow);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const totalCols = 5 + dates.length;
+    const totalRowIdx = funds.length + 1;
+
+    // Column widths
+    const colWidths = [{wch:22},{wch:9},{wch:9},{wch:12},{wch:12}];
+    dates.forEach(() => colWidths.push({wch:12}));
+    ws['!cols'] = colWidths;
+
+    // Colour for % change
+    function chgColor(val) {
+      if (val == null || val === "") return null;
+      if (val > 5)  return {bg: "0D6B3D", fg: "FFFFFF"};
+      if (val > 2)  return {bg: "27AE60", fg: "FFFFFF"};
+      if (val > 0.1) return {bg: "D4EFDF", fg: "0D6B3D"};
+      if (val > -0.1) return {bg: "F0F0F0", fg: "666666"};
+      if (val > -2) return {bg: "FADBD8", fg: "922B21"};
+      if (val > -5) return {bg: "E74C3C", fg: "FFFFFF"};
+      return {bg: "922B21", fg: "FFFFFF"};
+    }
+
+    // Colour for abs change
+    function absColor(val) {
+      if (val == null || val === "" || val === 0) return null;
+      if (val > 0) return {bg: "D4EFDF", fg: "0D6B3D"};
+      return {bg: "FADBD8", fg: "922B21"};
+    }
+
+    // Style header row
+    for (let c = 0; c < totalCols; c++) {
+      const addr = XLSX.utils.encode_cell({r:0, c:c});
+      if (!ws[addr]) continue;
+      ws[addr].s = {
+        font: {bold: true, sz: 10, color: {rgb: "FFFFFF"}},
+        fill: {fgColor: {rgb: "0A1628"}},
+        alignment: {horizontal: c === 0 ? "left" : "center"},
+        border: {bottom: {style: "thin", color: {rgb: "333333"}}}
+      };
+    }
+
+    // Style data rows
+    for (let ri = 0; ri < funds.length; ri++) {
+      const f = funds[ri];
+      const isCM = f.fund_label === "Capitalmind";
+      const rowIdx = ri + 1;
+
+      for (let c = 0; c < totalCols; c++) {
+        const addr = XLSX.utils.encode_cell({r: rowIdx, c: c});
+        if (!ws[addr]) continue;
+
+        const cellStyle = {
+          font: {sz: 10},
+          alignment: {horizontal: c === 0 ? "left" : "right"},
+          border: {bottom: {style: "thin", color: {rgb: "E0E0E0"}}}
+        };
+
+        if (isCM) {
+          cellStyle.font = {sz: 10, bold: true, color: {rgb: "1847D6"}};
+          cellStyle.fill = {fgColor: {rgb: "E8EFFF"}};
+        }
+
+        // 7D % (c=1) and 30D % (c=2)
+        if (c === 1 || c === 2) {
+          const val = c === 1 ? f.chg_7d : f.chg_30d;
+          const clr = chgColor(val);
+          if (clr) {
+            cellStyle.fill = {fgColor: {rgb: clr.bg}};
+            cellStyle.font = {sz: 10, bold: true, color: {rgb: clr.fg}};
+            if (isCM) cellStyle.font.color = {rgb: "1847D6"};
+          }
+          cellStyle.numFmt = "+0.00;-0.00;0.00";
+          cellStyle.alignment = {horizontal: "center"};
+        }
+
+        // 7D Abs (c=3) and 30D Abs (c=4)
+        if (c === 3 || c === 4) {
+          const val = c === 3 ? f.abs_7d : f.abs_30d;
+          const clr = absColor(val);
+          if (clr) {
+            cellStyle.fill = {fgColor: {rgb: clr.bg}};
+            cellStyle.font = {sz: 10, bold: true, color: {rgb: clr.fg}};
+            if (isCM) cellStyle.font.color = {rgb: "1847D6"};
+          }
+          cellStyle.numFmt = "+#,##0;-#,##0;0";
+          cellStyle.alignment = {horizontal: "center"};
+        }
+
+        // AUM date columns
+        if (c >= 5) {
+          cellStyle.numFmt = "#,##0";
+        }
+
+        ws[addr].s = cellStyle;
+      }
+    }
+
+    // Style totals row
+    for (let c = 0; c < totalCols; c++) {
+      const addr = XLSX.utils.encode_cell({r: totalRowIdx, c: c});
+      if (!ws[addr]) continue;
+      ws[addr].s = {
+        font: {sz: 10, bold: true, color: {rgb: "1338B0"}},
+        fill: {fgColor: {rgb: "E2E8F0"}},
+        alignment: {horizontal: c === 0 ? "left" : "right"},
+        border: {top: {style: "medium", color: {rgb: "9CA3AF"}}},
+        numFmt: c >= 3 ? "#,##0" : undefined,
+      };
+      // Abs totals colour
+      if (c === 3 || c === 4) {
+        const val = c === 3 ? totalAbs7d : totalAbs30d;
+        const clr = absColor(val);
+        if (clr) {
+          ws[addr].s.fill = {fgColor: {rgb: clr.bg}};
+          ws[addr].s.font = {sz: 10, bold: true, color: {rgb: clr.fg}};
+        }
+        ws[addr].s.numFmt = "+#,##0;-#,##0;0";
+        ws[addr].s.alignment = {horizontal: "center"};
+      }
+    }
+
+    return ws;
+  }
+
+  // Sheet 1: Liquid Ranking
+  const liqSheet = buildRankingSheet(_navData, "Liquid");
+  if (liqSheet) XLSX.utils.book_append_sheet(wb, liqSheet, "Liquid Ranking");
+
+  // Sheet 2: ARB Ranking
+  const arbSheet = buildRankingSheet(_arbData, "ARB");
+  if (arbSheet) XLSX.utils.book_append_sheet(wb, arbSheet, "ARB Ranking");
+
+  // Sheet 3: Liquid AUM
+  const liqAumSheet = buildAumSheet(_aumLiqData, "liquid");
+  if (liqAumSheet) XLSX.utils.book_append_sheet(wb, liqAumSheet, "Liquid AUM");
+
+  // Sheet 4: ARB AUM
+  const arbAumSheet = buildAumSheet(_aumArbData, "arb");
+  if (arbAumSheet) XLSX.utils.book_append_sheet(wb, arbAumSheet, "ARB AUM");
+
+  if (wb.SheetNames.length === 0) {
+    alert("No data loaded yet. Load at least one tab first.");
+    return;
+  }
+
+  // Generate filename with today's date
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2, '0');
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const yyyy = today.getFullYear();
+  const filename = `Fund-Performance-${dd}-${mm}-${yyyy}.xlsx`;
+
+  XLSX.writeFile(wb, filename);
+  } catch(e) {
+    alert("Export failed: " + e.message);
+  } finally {
+    btn.textContent = "⬇ Export Excel";
+    btn.disabled = false;
+  }
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+// ── CM MULTI ASSET ─────────────────────────────────────────────────────────
+async function loadMultiAssetDates() {
+  try {
+    const r = await fetch(`${API}/api/multiasset/dates`);
+    const d = await r.json();
+    const sel = document.getElementById("multiasset-date-select");
+    if (!d.dates || !d.dates.length) {
+      sel.innerHTML = '<option value="">No data — run multiasset_daily.py</option>'; return;
+    }
+    sel.innerHTML = d.dates.map(dt => `<option value="${dt}">${formatDate(dt)}</option>`).join("");
+    loadMultiAssetRankings();
+  } catch(e) { console.error("Multi Asset dates error:", e); }
+}
+
+async function loadMultiAssetRankings() {
+  const date = document.getElementById("multiasset-date-select").value;
+  if (!date) return;
+  const wrap = document.getElementById("multiasset-table-wrap");
+  wrap.innerHTML = `<div style="padding:20px;color:var(--text3);font-family:var(--mono)">Loading...</div>`;
+  try {
+    const r = await fetch(`${API}/api/multiasset/rankings?date=${date}`);
+    const d = await r.json();
+    if (d.error) { wrap.innerHTML = `<div style="padding:20px;color:var(--down)">${d.error}</div>`; return; }
+    _multiAssetData = d;
+    const overrideNote = d.t1_override ? ` · T-1 override: ${d.t1_override}` : "";
+    document.getElementById("multiasset-title").textContent =
+      `CM Multi Asset — Peer Rankings — ${formatDate(date)}${overrideNote}`;
+    document.getElementById("multiasset-t1-override").value = d.t1_override || "";
+    renderMultiAssetTable();
+  } catch(e) { wrap.innerHTML = `<div style="padding:20px;color:var(--down)">Error: ${e.message}</div>`; }
+}
+
+function renderMultiAssetTable() {
+  if (!_multiAssetData) return;
+  const sortPeriod = document.getElementById("multiasset-sort-period").value;
+  const showAUM    = document.getElementById("multiasset-show-aum").checked;
+  const funds      = [..._multiAssetData.funds];
+  const periods    = ["1d","7d","30d","91d","184d","365d","si"];
+  const nFunds     = funds.length;
+  const pLabel     = {"1d":"1D","7d":"7D","30d":"30D","91d":"91D","184d":"184D","365d":"365D","si":"SI"};
+
+  if (sortPeriod === "alpha") {
+    funds.sort((a,b) => _multiAssetAlphaAsc ? a.fund_label.localeCompare(b.fund_label) : b.fund_label.localeCompare(a.fund_label));
+  } else {
+    const rk = `rank_${sortPeriod}`;
+    funds.sort((a,b) => { const ra=a[rk],rb=b[rk]; if(ra==null&&rb==null)return 0; if(ra==null)return 1; if(rb==null)return -1; return ra-rb; });
+  }
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const bg2 = isDark ? '#111418' : '#ffffff';
+  const border = isDark ? '#1e2530' : '#dde1e8';
+
+  let html = `<table class="nav-table"><thead><tr>
+    <th class="fund-col" onclick="if(document.getElementById('multiasset-sort-period').value==='alpha'){_multiAssetAlphaAsc=!_multiAssetAlphaAsc;}else{document.getElementById('multiasset-sort-period').value='alpha';_multiAssetAlphaAsc=true;}renderMultiAssetTable()">FUND ↕</th>`;
+  if (showAUM) html += `<th onclick="">AUM (Cr)</th>`;
+  periods.forEach(p => {
+    const active = sortPeriod === p ? "active-sort" : "";
+    html += `<th class="${active}" colspan="2" style="text-align:center" onclick="document.getElementById('multiasset-sort-period').value='${p}';_multiAssetAlphaAsc=true;renderMultiAssetTable()">${pLabel[p]}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  funds.forEach(f => {
+    const isCM = f.fund_label === "Capitalmind";
+    const cmCls = isCM ? "cm-row" : "";
+    html += `<tr class="${cmCls}"><td class="fund-name">${isCM ? "▶ " : ""}${f.fund_label}</td>`;
+    if (showAUM) {
+      const aum = f.aum_cr != null ? Math.round(f.aum_cr).toLocaleString("en-IN") : "—";
+      html += `<td class="aum-val" style="background:${bg2}">${aum}</td>`;
+    }
+    periods.forEach(p => {
+      const rank = f[`rank_${p}`]; const ret = f[`ret_${p}`];
+      const c = rankColor(rank, nFunds);
+      const rankStr = rank != null ? rank : "—";
+      const retStr  = ret  != null ? ret.toFixed(2)+"%" : "—";
+      html += `<td style="background:${c.bg};border:1px solid ${c.border};min-width:50px">
+        <div class="hm-cell"><span class="hm-rank" style="color:${c.fg}">${rankStr}</span><span class="hm-ret" style="color:${c.fg}">${retStr}</span></div></td>`;
+      html += `<td style="display:none"></td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  document.getElementById("multiasset-table-wrap").innerHTML = html;
+  const sortLabel = sortPeriod==="alpha"?(_multiAssetAlphaAsc?"A→Z":"Z→A"):pLabel[sortPeriod];
+  document.getElementById("multiasset-status").textContent =
+    `${funds.length} funds · sorted by ${sortLabel} · annualised returns`;
+}
+
+async function applyMultiAssetOverride() {
+  const date = document.getElementById("multiasset-date-select").value;
+  const t1   = document.getElementById("multiasset-t1-override").value;
+  if (!date || !t1) { alert("Select a date and T-1 override date"); return; }
+  document.getElementById("multiasset-status").textContent = "Applying override...";
+  try {
+    const r = await fetch(`${API}/api/multiasset/override`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({nav_date: date, t1_date: t1})
+    });
+    const d = await r.json();
+    if (d.success) { loadMultiAssetRankings(); }
+    else document.getElementById("multiasset-status").textContent = "Error: " + d.error;
+  } catch(e) { document.getElementById("multiasset-status").textContent = "Error: " + e.message; }
+}
+
+function clearMultiAssetOverride() {
+  document.getElementById("multiasset-t1-override").value = "";
+  document.getElementById("multiasset-status").textContent = "Override cleared";
+}
+
+// ── CM FLEXI CAP ───────────────────────────────────────────────────────────
+async function loadFlexiDates() {
+  try {
+    const r = await fetch(`${API}/api/flexi/dates`);
+    const d = await r.json();
+    const sel = document.getElementById("flexi-date-select");
+    if (!d.dates || !d.dates.length) {
+      sel.innerHTML = '<option value="">No data — run flexi_daily.py</option>'; return;
+    }
+    sel.innerHTML = d.dates.map(dt => `<option value="${dt}">${formatDate(dt)}</option>`).join("");
+    loadFlexiRankings();
+  } catch(e) { console.error("Flexi dates error:", e); }
+}
+
+async function loadFlexiRankings() {
+  const date = document.getElementById("flexi-date-select").value;
+  if (!date) return;
+  const wrap = document.getElementById("flexi-table-wrap");
+  wrap.innerHTML = `<div style="padding:20px;color:var(--text3);font-family:var(--mono)">Loading...</div>`;
+  try {
+    const r = await fetch(`${API}/api/flexi/rankings?date=${date}`);
+    const d = await r.json();
+    if (d.error) { wrap.innerHTML = `<div style="padding:20px;color:var(--down)">${d.error}</div>`; return; }
+    _flexiData = d;
+    const overrideNote = d.t1_override ? ` · T-1 override: ${d.t1_override}` : "";
+    document.getElementById("flexi-title").textContent =
+      `CM Flexi Cap — Peer Rankings — ${formatDate(date)}${overrideNote}`;
+    document.getElementById("flexi-t1-override").value = d.t1_override || "";
+    renderFlexiTable();
+  } catch(e) { wrap.innerHTML = `<div style="padding:20px;color:var(--down)">Error: ${e.message}</div>`; }
+}
+
+function renderFlexiTable() {
+  if (!_flexiData) return;
+  const sortPeriod = document.getElementById("flexi-sort-period").value;
+  const showAUM    = document.getElementById("flexi-show-aum").checked;
+  const funds      = [..._flexiData.funds];
+  const periods    = ["1d","7d","30d","91d","184d","365d","si"];
+  const nFunds     = funds.length;
+  const pLabel     = {"1d":"1D","7d":"7D","30d":"30D","91d":"91D","184d":"184D","365d":"365D","si":"SI"};
+
+  if (sortPeriod === "alpha") {
+    funds.sort((a,b) => _flexiAlphaAsc ? a.fund_label.localeCompare(b.fund_label) : b.fund_label.localeCompare(a.fund_label));
+  } else {
+    const rk = `rank_${sortPeriod}`;
+    funds.sort((a,b) => { const ra=a[rk],rb=b[rk]; if(ra==null&&rb==null)return 0; if(ra==null)return 1; if(rb==null)return -1; return ra-rb; });
+  }
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const bg2 = isDark ? '#111418' : '#ffffff';
+  const border = isDark ? '#1e2530' : '#dde1e8';
+
+  let html = `<table class="nav-table"><thead><tr>
+    <th class="fund-col" onclick="if(document.getElementById('flexi-sort-period').value==='alpha'){_flexiAlphaAsc=!_flexiAlphaAsc;}else{document.getElementById('flexi-sort-period').value='alpha';_flexiAlphaAsc=true;}renderFlexiTable()">FUND ↕</th>`;
+  if (showAUM) html += `<th onclick="">AUM (Cr)</th>`;
+  periods.forEach(p => {
+    const active = sortPeriod === p ? "active-sort" : "";
+    html += `<th class="${active}" colspan="2" style="text-align:center" onclick="document.getElementById('flexi-sort-period').value='${p}';_flexiAlphaAsc=true;renderFlexiTable()">${pLabel[p]}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  funds.forEach(f => {
+    const isCM = f.fund_label === "Capitalmind";
+    const cmCls = isCM ? "cm-row" : "";
+    html += `<tr class="${cmCls}"><td class="fund-name">${isCM ? "▶ " : ""}${f.fund_label}</td>`;
+    if (showAUM) {
+      const aum = f.aum_cr != null ? Math.round(f.aum_cr).toLocaleString("en-IN") : "—";
+      html += `<td class="aum-val" style="background:${bg2}">${aum}</td>`;
+    }
+    periods.forEach(p => {
+      const rank = f[`rank_${p}`]; const ret = f[`ret_${p}`];
+      const c = rankColor(rank, nFunds);
+      const rankStr = rank != null ? rank : "—";
+      const retStr  = ret  != null ? ret.toFixed(2)+"%" : "—";
+      html += `<td style="background:${c.bg};border:1px solid ${c.border};min-width:50px">
+        <div class="hm-cell"><span class="hm-rank" style="color:${c.fg}">${rankStr}</span><span class="hm-ret" style="color:${c.fg}">${retStr}</span></div></td>`;
+      html += `<td style="display:none"></td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  document.getElementById("flexi-table-wrap").innerHTML = html;
+  const sortLabel = sortPeriod==="alpha"?(_flexiAlphaAsc?"A→Z":"Z→A"):pLabel[sortPeriod];
+  document.getElementById("flexi-status").textContent =
+    `${funds.length} funds · sorted by ${sortLabel} · annualised returns`;
+}
+
+async function applyFlexiOverride() {
+  const date = document.getElementById("flexi-date-select").value;
+  const t1   = document.getElementById("flexi-t1-override").value;
+  if (!date || !t1) { alert("Select a date and T-1 override date"); return; }
+  document.getElementById("flexi-status").textContent = "Applying override...";
+  try {
+    const r = await fetch(`${API}/api/flexi/override`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({nav_date: date, t1_date: t1})
+    });
+    const d = await r.json();
+    if (d.success) { loadFlexiRankings(); }
+    else document.getElementById("flexi-status").textContent = "Error: " + d.error;
+  } catch(e) { document.getElementById("flexi-status").textContent = "Error: " + e.message; }
+}
+
+function clearFlexiOverride() {
+  document.getElementById("flexi-t1-override").value = "";
+  document.getElementById("flexi-status").textContent = "Override cleared";
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+initTheme();
+loadNavDates();
+loadArbDates();
+loadMultiAssetDates();
+loadFlexiDates();
+</script>
+</body>
+</html>
